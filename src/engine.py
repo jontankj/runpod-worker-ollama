@@ -44,34 +44,29 @@ class NetworkVolumeManager:
     
     def model_exists(self, model_name):
         """Check if a model exists on the network volume"""
-        # Ollama stores models in manifests/registry.ollama.ai/library/model_name/tag
-        model_parts = model_name.split(":")
-        if len(model_parts) == 2:
-            model_path = os.path.join(
-                self.models_dir, 
-                "manifests", 
-                "registry.ollama.ai", 
-                "library", 
-                model_parts[0], 
-                model_parts[1]
+        try:
+            # Use ollama list to check for models
+            result = subprocess.run(
+                ["ollama", "list"],
+                capture_output=True,
+                text=True,
+                env=dict(os.environ, OLLAMA_MODELS=self.models_dir)
             )
-        else:
-            model_path = os.path.join(
-                self.models_dir, 
-                "manifests", 
-                "registry.ollama.ai", 
-                "library", 
-                model_parts[0], 
-                "latest"
-            )
-        
-        exists = os.path.exists(model_path)
-        if exists:
-            print(f"✓ Model {model_name} found on network volume")
-        else:
-            print(f"✗ Model {model_name} not found on volume, will download")
-        
-        return exists
+            
+            if result.returncode == 0:
+                # Check if model_name appears in the output
+                exists = model_name in result.stdout
+                if exists:
+                    print(f"✓ Model {model_name} found on network volume")
+                else:
+                    print(f"✗ Model {model_name} not found on volume, will download")
+                return exists
+            else:
+                print(f"✗ Failed to list models: {result.stderr}")
+                return False
+        except Exception as e:
+            print(f"✗ Error checking model existence: {e}")
+            return False
     
     def ensure_model_available(self, model_name):
         """Ensure model is available, download if necessary"""
